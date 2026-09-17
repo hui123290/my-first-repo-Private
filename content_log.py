@@ -124,6 +124,16 @@ def get_date_range(days):
     return start_date.isoformat(), today.isoformat()
 
 
+def get_week_range(target_date=None):
+    """获取某天所在周的起止日期，周一到周日"""
+    if target_date is None:
+        target_date = date.today()
+
+    start = target_date - timedelta(days=target_date.weekday())
+    end = start + timedelta(days=6)
+    return start.isoformat(), end.isoformat()
+
+
 def filter_logs(logs, days=None, content_type=None, platform=None, status=None):
     """根据条件筛选日志"""
     if days is not None:
@@ -274,6 +284,45 @@ def summary(days=1):
     print(f"- 发布内容：{len(published_items)} 个")
 
 
+def weekly_summary():
+    """自动按周生成总结，按自然周统计（周一到周日）"""
+    all_logs = load_logs()
+    start_date_str, end_date_str = get_week_range(date.today())
+
+    week_logs = [
+        log
+        for log in all_logs
+        if start_date_str <= log.get("date", "") <= end_date_str
+    ]
+
+    if not week_logs:
+        print(f"本周（{start_date_str} ~ {end_date_str}）暂无内容工作记录。")
+        return
+
+    print("=" * 60)
+    print(f"本周内容工作总结：{start_date_str} ~ {end_date_str}")
+    print("=" * 60)
+
+    print_statistics(week_logs)
+
+    print("\n本周详细记录：")
+    for log in sorted(week_logs, key=lambda item: item.get("date", "")):
+        print_log(log)
+
+    completed_topics = [
+        log
+        for log in week_logs
+        if log.get("type") == "选题"
+        and log.get("status") in ["已完成", "已发布"]
+    ]
+    published_items = [
+        log for log in week_logs if log.get("type") == "发布" or log.get("status") == "已发布"
+    ]
+    print("\n本周效果：")
+    print(f"- 已完成选题：{len(completed_topics)} 个")
+    print(f"- 发布内容：{len(published_items)} 个")
+
+
 def show_pipeline():
     """查看当前内容生产流水线"""
     logs = load_logs()
@@ -337,6 +386,7 @@ def build_parser():
     summary_parser = subparsers.add_parser("summary", help="生成日报或周报")
     summary_parser.add_argument("--days", type=int, default=1, help="统计最近多少天，默认 1 天")
 
+    subparsers.add_parser("weekly", help="自动按自然周生成总结")
     subparsers.add_parser("pipeline", help="查看正在进行中的内容流水线")
 
     return parser
@@ -368,6 +418,8 @@ def main():
         search_logs(args.keyword)
     elif args.command == "summary":
         summary(days=args.days)
+    elif args.command == "weekly":
+        weekly_summary()
     elif args.command == "pipeline":
         show_pipeline()
 
